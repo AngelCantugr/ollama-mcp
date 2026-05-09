@@ -77,10 +77,10 @@ async def test_health_ollama_unreachable(ollama_mock: MockRouter) -> None:
 async def test_health_data_dir_unwritable(
     monkeypatch: pytest.MonkeyPatch, ollama_mock: MockRouter
 ) -> None:
-    proc_path = Path("/proc/1")
-    if not proc_path.exists():
-        pytest.skip("/proc/1 unavailable on this platform")
-    monkeypatch.setenv("DATA_DIR", str(proc_path))
+    def _raise_os_error(filename: str) -> Path:
+        raise OSError(f"permission denied: {filename}")
+
+    monkeypatch.setattr("ollama_mcp.tools.discovery.paths.create_data_file", _raise_os_error)
 
     result = await discovery.health({})
 
