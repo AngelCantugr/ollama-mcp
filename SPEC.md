@@ -467,39 +467,62 @@ Validated against a JSON schema on load. Rejected if shape is invalid — the se
 
 ## Project Structure
 
+The codebase uses the `src/` package layout so `python -m ollama_mcp` works cleanly with `uv` and `mypy --strict` can scope to the package.
+
 ```
 ollama-mcp/
-├── server.py                  # MCP server entry point
-├── tools/
-│   ├── __init__.py
-│   ├── discovery.py           # list_models, health
-│   ├── runner.py              # run, route
-│   ├── compare.py             # compare
-│   ├── judge.py               # score_comparison, judge_with_model
-│   ├── knowledge.py           # log_eval, delete_eval, export_evals, get_model_insights, classify_prompt
-│   └── routing.py             # get_routing_config, update_routing_rule, suggest_routing_updates, reset_routing
-├── storage/
-│   ├── __init__.py
-│   ├── db.py                  # SQLite connection + migration runner
-│   ├── evals_repo.py          # DB access — keeps SQL out of tools/
-│   ├── migrations/
-│   │   ├── 001_init.sql
-│   │   └── 002_*.sql
-│   └── evals.db               # created on first run
-├── config/
-│   ├── routing.json           # default routing rules
-│   └── routing.schema.json    # JSON schema for validation
-├── tests/
-│   ├── test_runner.py
-│   ├── test_compare.py
-│   ├── test_judge.py
-│   ├── test_knowledge.py
-│   └── conftest.py            # respx fixtures, isolated tmp data dir
 ├── pyproject.toml
+├── uv.lock
 ├── README.md
 ├── SPEC.md
-└── .env.example
+├── AGENTS.md
+├── CLAUDE.md → AGENTS.md
+├── Taskfile.yaml
+├── .env.example
+├── src/
+│   └── ollama_mcp/
+│       ├── __init__.py
+│       ├── __main__.py            # entry: `python -m ollama_mcp`
+│       ├── server.py              # MCP server stdio loop, registry-driven dispatch
+│       ├── client.py              # async httpx client to Ollama REST
+│       ├── errors.py              # error envelope + 5 codes
+│       ├── envelope.py            # wrap_untrusted(model, response) helper
+│       ├── logging.py             # structured JSON logger (stderr)
+│       ├── paths.py               # DATA_DIR resolution + symlink hardening
+│       ├── tools/
+│       │   ├── __init__.py        # @register_tool decorator + registry
+│       │   ├── discovery.py       # list_models, health
+│       │   ├── runner.py          # run, route
+│       │   ├── compare.py         # compare
+│       │   ├── judge.py           # score_comparison, judge_with_model
+│       │   ├── knowledge.py       # log_eval, delete_eval, export_evals, get_model_insights, classify_prompt
+│       │   └── routing.py         # get_routing_config, update_routing_rule, suggest_routing_updates, reset_routing
+│       └── storage/
+│           ├── __init__.py
+│           ├── db.py              # SQLite connection + migration runner
+│           ├── evals_repo.py      # DB access — keeps SQL out of tools/
+│           └── migrations/
+│               ├── 001_init.sql
+│               └── 002_*.sql
+├── config/
+│   ├── routing.json               # default routing rules
+│   └── routing.schema.json        # JSON schema for validation
+└── tests/
+    ├── conftest.py                # respx fixtures, isolated tmp DATA_DIR
+    ├── test_smoke.py
+    ├── test_errors.py
+    ├── test_envelope.py
+    ├── test_paths.py
+    ├── test_logging.py
+    ├── test_discovery.py
+    ├── test_runner.py
+    ├── test_compare.py
+    ├── test_judge.py
+    ├── test_knowledge.py
+    └── test_routing.py
 ```
+
+Runtime data (the SQLite DB, exports) lives under `${DATA_DIR}` (default `~/.ollama-mcp/`) — outside the source tree, so the repo stays free of generated state.
 
 ---
 
