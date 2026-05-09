@@ -1,0 +1,75 @@
+name: Copilot Setup Steps
+
+# Pre-installs the Python toolchain (uv + Python 3.12), syncs the project
+# environment, and primes ruff/mypy/pytest caches so the Copilot cloud
+# agent starts with a warm environment instead of paying the install cost
+# on every task.
+#
+# The job name MUST be `copilot-setup-steps` — that exact string is what
+# Copilot's runner looks for to discover this configuration.
+#
+# Triggered on workflow_dispatch and on changes to this file only;
+# build-and-test.yaml + lint.yml continue to handle PR validation.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    name: Warm up ollama-mcp dev environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        # Pin to 3.12 — matches the version used by lint.yml and the
+        # default targeted by mypy / ruff. The 3.11/3.12 matrix in
+        # build-and-test.yaml still validates both supported versions.
+        run: uv python install 3.12
+
+      - name: Sync project environment
+        # `--frozen` requires uv.lock to be in sync with pyproject.toml.
+        # If lockfile drift breaks this step, run `uv lock` locally and
+        # commit the updated lockfile.
+        run: uv sync --all-extras --frozen
+
+      - name: Install go-task
+        # Taskfile.yaml drives all developer commands — install go-task so
+        # the agent can invoke `task check`, `task test`, etc. directly.
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prime ruff cache
+        # Runs lint + format check; ruff caches per-file results so the
+        # agent's first `task lint` / `task fmt:check` is fast.
+        run: |
+          uv run ruff check . || true
+          uv run ruff format --check . || true
+
+      - name: Prime mypy cache
+        # Populates `.mypy_cache/` so the agent's first `task typecheck`
+        # incremental run only re-checks edited files. `|| true` because
+        # we want a warm cache even if existing code has type errors.
+        run: uv run mypy . || true
+
+      - name: Verify test collection
+        # Discovers and imports every test module without executing them
+        # — analogous to `go test -count=0 ./...`. Primes the pytest
+        # cache and surfaces import errors before the agent runs `task
+        # test`.
+        run: uv run pytest --collect-only -q
