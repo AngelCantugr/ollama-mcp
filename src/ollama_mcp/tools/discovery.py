@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -162,10 +163,8 @@ async def health(arguments: dict[str, Any]) -> dict[str, Any]:
         db_status = "unwritable"
     finally:
         if probe_path is not None:
-            try:
+            with suppress(OSError):
                 probe_path.unlink(missing_ok=True)
-            except OSError:
-                db_status = "unwritable"
 
     response = {"ollama": ollama_status, "db": db_status, "data_dir": str(data_dir)}
     log_tool_call(
