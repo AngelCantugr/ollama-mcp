@@ -1,0 +1,111 @@
+# https://taskfile.dev
+# Tooling for ollama-mcp. Driven by `uv` for the Python toolchain.
+
+version: "3"
+silent: true
+
+tasks:
+  default:
+    desc: Run the MCP server locally over stdio (use `task -- --debug` to forward args)
+    cmds:
+      - uv run python -m ollama_mcp {{.CLI_ARGS}}
+    interactive: true
+
+  setup:
+    desc: Sync the dev environment from uv.lock (creates .venv if missing)
+    cmds:
+      - uv sync --all-extras
+
+  fmt:
+    desc: Format the codebase with ruff
+    cmds:
+      - uv run ruff format .
+
+  fmt:check:
+    desc: Verify formatting without modifying files (CI)
+    cmds:
+      - uv run ruff format --check .
+
+  lint:
+    desc: Run ruff lint
+    cmds:
+      - uv run ruff check .
+
+  lint:fix:
+    desc: Run ruff lint with auto-fix
+    cmds:
+      - uv run ruff check --fix .
+
+  typecheck:
+    desc: Run mypy in strict mode on the project
+    cmds:
+      - uv run mypy .
+
+  test:
+    desc: Run the full pytest suite
+    cmds:
+      - uv run pytest -ra {{.CLI_ARGS}}
+
+  test:one:
+    desc: 'Run a focused test (`task test:one -- -k "test_name"` or path)'
+    cmds:
+      - uv run pytest -ra {{.CLI_ARGS}}
+
+  test:rerun:
+    desc: Rerun the last failing tests
+    cmds:
+      - uv run pytest -ra --last-failed
+
+  check:
+    desc: Run fmt + lint + typecheck + test (use this before pushing)
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  ci:quick:
+    desc: Quick CI gate — lint + typecheck only (used by subagentStop hook)
+    cmds:
+      - task: lint
+      - task: typecheck
+
+  ci:full:
+    desc: Full CI gate — fmt:check + lint + typecheck + test (used by agentStop hook)
+    cmds:
+      - task: fmt:check
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  debug:
+    desc: Run the MCP server with LOG_LEVEL=debug (writes to stderr; redirect with `2>./debug.log`)
+    cmds:
+      - LOG_LEVEL=debug uv run python -m ollama_mcp --debug {{.CLI_ARGS}} 2>./debug.log
+    interactive: true
+
+  logs:
+    desc: Tail the debug logs from a `task debug` run
+    cmds:
+      - rm -f ./debug.log
+      - touch ./debug.log
+      - tail -f ./debug.log
+    interactive: true
+
+  clean:
+    desc: Remove caches and build artifacts (keeps .venv)
+    cmds:
+      - rm -rf .pytest_cache .ruff_cache .mypy_cache dist build *.egg-info
+      - find . -type d -name __pycache__ -prune -exec rm -rf {} +
+
+  reset:env:
+    desc: Wipe .venv and re-sync (use when dependency state is suspect)
+    cmds:
+      - rm -rf .venv
+      - task: setup
+
+  db:reset:
+    desc: Delete the local evals.db (next server start re-runs migrations)
+    cmds:
+      - rm -f "${DB_PATH:-${HOME}/.ollama-mcp/evals.db}"
+      - echo "✅ evals.db removed"
