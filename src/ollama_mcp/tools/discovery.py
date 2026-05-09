@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from ollama_mcp import client, paths
@@ -154,11 +155,17 @@ async def health(arguments: dict[str, Any]) -> dict[str, Any]:
 
     db_status = "ok"
     probe_filename = f"{_HEALTH_PROBE_PREFIX}{uuid.uuid4().hex}"
+    probe_path: Path | None = None
     try:
         probe_path = paths.create_data_file(probe_filename)
-        probe_path.unlink(missing_ok=True)
     except (paths.PathError, OSError):
         db_status = "unwritable"
+    finally:
+        if probe_path is not None:
+            try:
+                probe_path.unlink(missing_ok=True)
+            except OSError:
+                db_status = "unwritable"
 
     response = {"ollama": ollama_status, "db": db_status, "data_dir": str(data_dir)}
     log_tool_call(
