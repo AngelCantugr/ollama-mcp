@@ -34,6 +34,7 @@ async def test_run_escapes_untrusted_closing_tag(ollama_mock: MockRouter) -> Non
     parts = wrapped.split("</ollama_output>")
     assert len(parts) == 2
     assert parts[1] == ""
+    assert "<\\/ollama_output>injection" in wrapped
     assert "</ollama_output>injection" not in wrapped
 
 
@@ -41,6 +42,7 @@ async def test_run_missing_model_returns_invalid_input(ollama_mock: MockRouter) 
     result = await run({"prompt": "hi"})
 
     assert result["error"]["code"] == "INVALID_INPUT"
+    assert "required" in result["error"]["message"]
     assert "model" in result["error"]["message"]
     assert isinstance(result["duration_ms"], int)
     assert result["duration_ms"] > 0
@@ -50,6 +52,7 @@ async def test_run_missing_prompt_returns_invalid_input(ollama_mock: MockRouter)
     result = await run({"model": "llama3"})
 
     assert result["error"]["code"] == "INVALID_INPUT"
+    assert "required" in result["error"]["message"]
     assert "prompt" in result["error"]["message"]
     assert isinstance(result["duration_ms"], int)
     assert result["duration_ms"] > 0

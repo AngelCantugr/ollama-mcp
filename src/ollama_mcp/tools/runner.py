@@ -2,6 +2,7 @@
 
 import os
 import time
+from collections.abc import Mapping
 from typing import Any
 
 import httpx
@@ -39,6 +40,11 @@ _log = get_logger("ollama_mcp.tools.runner")
 async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     """Run a prompt against one local model and return wrapped output."""
     start = time.monotonic()
+
+    if "model" not in arguments:
+        return _invalid_input(start, "Field 'model' is required.")
+    if "prompt" not in arguments:
+        return _invalid_input(start, "Field 'prompt' is required.")
 
     model = arguments.get("model")
     prompt = arguments.get("prompt")
@@ -90,15 +96,13 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     duration_ms = _duration_ms(start)
     if "error" in result:
         error_data = result.get("error")
-        error_detail: dict[str, Any]
+        error_detail: Mapping[str, Any]
         if isinstance(error_data, dict):
             error_detail = error_data
         else:
-            error_detail = dict(
-                make_error(
-                    ErrorCode.OLLAMA_UNREACHABLE, "Unexpected error format from Ollama client"
-                )["error"]
-            )
+            error_detail = make_error(
+                ErrorCode.OLLAMA_UNREACHABLE, "Unexpected error format from Ollama client"
+            )["error"]
         error_code = error_detail.get("code")
         log_tool_call(
             tool="run",
@@ -108,7 +112,7 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
             error_code=error_code if isinstance(error_code, str) else None,
             eval_id=None,
         )
-        return {"error": error_detail, "duration_ms": duration_ms}
+        return {"error": dict(error_detail), "duration_ms": duration_ms}
 
     raw_response = result.get("response")
     if not isinstance(raw_response, str):
