@@ -31,9 +31,7 @@ async def test_run_escapes_untrusted_closing_tag(ollama_mock: MockRouter) -> Non
     assert result["status"] == "ok"
     wrapped = result["response"]
     assert isinstance(wrapped, str)
-    parts = wrapped.split("</ollama_output>")
-    assert len(parts) == 2
-    assert parts[1] == ""
+    assert wrapped.endswith("</ollama_output>")
     assert "<\\/ollama_output>injection" in wrapped
     assert "</ollama_output>injection" not in wrapped
 

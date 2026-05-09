@@ -46,8 +46,8 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     if "prompt" not in arguments:
         return _invalid_input(start, "Field 'prompt' is required.")
 
-    model = arguments.get("model")
-    prompt = arguments.get("prompt")
+    model = arguments["model"]
+    prompt = arguments["prompt"]
     timeout_arg = arguments.get("timeout_ms")
 
     if not isinstance(model, str):
@@ -91,7 +91,12 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     except Exception as exc:  # pragma: no cover - defensive guard
         # Keep unexpected exceptions inside the envelope; this code set has no generic
         # internal-error value, so unknown failures are surfaced as unreachable.
-        return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
+        return _error_result(
+            start,
+            ErrorCode.OLLAMA_UNREACHABLE,
+            f"Unexpected internal error while calling Ollama client: {exc}",
+            model=model,
+        )
 
     duration_ms = _duration_ms(start)
     if "error" in result:
