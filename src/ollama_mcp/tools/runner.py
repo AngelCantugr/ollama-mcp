@@ -86,10 +86,15 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
 
     duration_ms = _duration_ms(start)
     if "error" in result:
-        error = result.get("error")
-        if not isinstance(error, dict):
-            error = make_error(ErrorCode.OLLAMA_UNREACHABLE, "Malformed error response")["error"]
-        error_code = error.get("code")
+        error_data = result.get("error")
+        error_detail: dict[str, Any]
+        if isinstance(error_data, dict):
+            error_detail = error_data
+        else:
+            error_detail = dict(
+                make_error(ErrorCode.OLLAMA_UNREACHABLE, "Malformed error response")["error"]
+            )
+        error_code = error_detail.get("code")
         log_tool_call(
             tool="run",
             duration_ms=duration_ms,
@@ -98,7 +103,7 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
             error_code=error_code if isinstance(error_code, str) else None,
             eval_id=None,
         )
-        return {"error": error, "duration_ms": duration_ms}
+        return {"error": error_detail, "duration_ms": duration_ms}
 
     raw_response = result.get("response")
     if not isinstance(raw_response, str):

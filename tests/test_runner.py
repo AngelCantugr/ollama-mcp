@@ -56,7 +56,9 @@ async def test_run_missing_prompt_returns_invalid_input(ollama_mock: MockRouter)
 
 
 async def test_run_timeout_returns_model_timeout(ollama_mock: MockRouter) -> None:
-    ollama_mock.post("/api/generate").mock(side_effect=httpx.TimeoutException("test timeout"))
+    ollama_mock.post("/api/generate").mock(
+        side_effect=httpx.TimeoutException("Simulated timeout for test")
+    )
 
     result = await run({"model": "llama3", "prompt": "hi", "timeout_ms": 10})
 
