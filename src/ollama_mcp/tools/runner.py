@@ -4,6 +4,8 @@ import os
 import time
 from typing import Any
 
+import httpx
+
 from ollama_mcp import client
 from ollama_mcp.envelope import wrap_untrusted
 from ollama_mcp.errors import ErrorCode, make_error
@@ -58,18 +60,29 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
 
     try:
         result = await client.generate(model=model, prompt=prompt, timeout_ms=timeout_ms)
-    except Exception as exc:  # pragma: no cover - defensive guard
-        duration_ms = _duration_ms(start)
-        log_tool_call(
-            tool="run",
-            duration_ms=duration_ms,
-            model=model,
-            status="error",
-            error_code=ErrorCode.OLLAMA_UNREACHABLE.value,
-            eval_id=None,
+    except httpx.TimeoutException:
+        return _error_result(
+            start, ErrorCode.MODEL_TIMEOUT, f"Ollama timed out for model {model!r}", model=model
         )
-        payload = make_error(ErrorCode.OLLAMA_UNREACHABLE, str(exc))
-        return {"error": payload["error"], "duration_ms": duration_ms}
+    except httpx.ConnectError:
+        return _error_result(
+            start, ErrorCode.OLLAMA_UNREACHABLE, "Cannot reach Ollama", model=model
+        )
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            return _error_result(
+                start, ErrorCode.MODEL_NOT_FOUND, f"Model {model!r} not found", model=model
+            )
+        return _error_result(
+            start,
+            ErrorCode.OLLAMA_UNREACHABLE,
+            f"Ollama HTTP error: {exc.response.status_code}",
+            model=model,
+        )
+    except httpx.HTTPError as exc:
+        return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
 
     duration_ms = _duration_ms(start)
     if "error" in result:
@@ -89,16 +102,9 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
 
     raw_response = result.get("response")
     if not isinstance(raw_response, str):
-        log_tool_call(
-            tool="run",
-            duration_ms=duration_ms,
-            model=model,
-            status="error",
-            error_code=ErrorCode.OLLAMA_UNREACHABLE.value,
-            eval_id=None,
+        return _error_result(
+            start, ErrorCode.OLLAMA_UNREACHABLE, "Malformed Ollama response payload", model=model
         )
-        payload = make_error(ErrorCode.OLLAMA_UNREACHABLE, "Malformed Ollama response payload")
-        return {"error": payload["error"], "duration_ms": duration_ms}
 
     response = wrap_untrusted(model, raw_response)
     log_tool_call(
@@ -126,14 +132,20 @@ def _duration_ms(start: float) -> int:
 
 
 def _invalid_input(start: float, message: str, model: str | None = None) -> dict[str, Any]:
+    return _error_result(start, ErrorCode.INVALID_INPUT, message, model=model)
+
+
+def _error_result(
+    start: float, code: ErrorCode, message: str, model: str | None = None
+) -> dict[str, Any]:
     duration_ms = _duration_ms(start)
     log_tool_call(
         tool="run",
         duration_ms=duration_ms,
         model=model,
         status="error",
-        error_code=ErrorCode.INVALID_INPUT.value,
+        error_code=code.value,
         eval_id=None,
     )
-    payload = make_error(ErrorCode.INVALID_INPUT, message)
+    payload = make_error(code, message)
     return {"error": payload["error"], "duration_ms": duration_ms}

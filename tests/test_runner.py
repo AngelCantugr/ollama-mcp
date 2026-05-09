@@ -41,6 +41,7 @@ async def test_run_missing_model_returns_invalid_input(ollama_mock: MockRouter) 
     result = await run({"prompt": "hi"})
 
     assert result["error"]["code"] == "INVALID_INPUT"
+    assert "model" in result["error"]["message"]
     assert isinstance(result["duration_ms"], int)
     assert result["duration_ms"] > 0
 
@@ -49,6 +50,7 @@ async def test_run_missing_prompt_returns_invalid_input(ollama_mock: MockRouter)
     result = await run({"model": "llama3"})
 
     assert result["error"]["code"] == "INVALID_INPUT"
+    assert "prompt" in result["error"]["message"]
     assert isinstance(result["duration_ms"], int)
     assert result["duration_ms"] > 0
 
