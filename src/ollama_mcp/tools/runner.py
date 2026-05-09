@@ -9,10 +9,11 @@ import httpx
 from ollama_mcp import client
 from ollama_mcp.envelope import wrap_untrusted
 from ollama_mcp.errors import ErrorCode, make_error
-from ollama_mcp.logging import log_tool_call
+from ollama_mcp.logging import get_logger, log_tool_call
 from ollama_mcp.tools import register_tool
 
 _DEFAULT_TIMEOUT_MS = 120_000
+_log = get_logger("ollama_mcp.tools.runner")
 
 
 @register_tool(
@@ -82,7 +83,8 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     except httpx.HTTPError as exc:
         return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
     except Exception as exc:  # pragma: no cover - defensive guard
-        # Tool-level fallback: keep unexpected exceptions inside the error envelope.
+        # Keep unexpected exceptions inside the envelope; this code set has no generic
+        # internal-error value, so unknown failures are surfaced as unreachable.
         return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
 
     duration_ms = _duration_ms(start)
@@ -94,7 +96,7 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
         else:
             error_detail = dict(
                 make_error(
-                    ErrorCode.OLLAMA_UNREACHABLE, "Ollama returned a malformed error response"
+                    ErrorCode.OLLAMA_UNREACHABLE, "Unexpected error format from Ollama client"
                 )["error"]
             )
         error_code = error_detail.get("code")
@@ -131,8 +133,20 @@ def _resolve_timeout_ms() -> int:
     try:
         timeout_ms = int(raw_timeout_ms)
     except ValueError:
+        _log.warning(
+            "Invalid OLLAMA_TIMEOUT_MS value %r; using default %d",
+            raw_timeout_ms,
+            _DEFAULT_TIMEOUT_MS,
+        )
         return _DEFAULT_TIMEOUT_MS
-    return timeout_ms if timeout_ms > 0 else _DEFAULT_TIMEOUT_MS
+    if timeout_ms <= 0:
+        _log.warning(
+            "Non-positive OLLAMA_TIMEOUT_MS value %r; using default %d",
+            raw_timeout_ms,
+            _DEFAULT_TIMEOUT_MS,
+        )
+        return _DEFAULT_TIMEOUT_MS
+    return timeout_ms
 
 
 def _duration_ms(start: float) -> int:
