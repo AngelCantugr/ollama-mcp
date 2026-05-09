@@ -82,6 +82,7 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
     except httpx.HTTPError as exc:
         return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
     except Exception as exc:  # pragma: no cover - defensive guard
+        # Tool-level fallback: keep unexpected exceptions inside the error envelope.
         return _error_result(start, ErrorCode.OLLAMA_UNREACHABLE, str(exc), model=model)
 
     duration_ms = _duration_ms(start)
@@ -92,7 +93,9 @@ async def run(arguments: dict[str, Any]) -> dict[str, Any]:
             error_detail = error_data
         else:
             error_detail = dict(
-                make_error(ErrorCode.OLLAMA_UNREACHABLE, "Malformed error response")["error"]
+                make_error(
+                    ErrorCode.OLLAMA_UNREACHABLE, "Ollama returned a malformed error response"
+                )["error"]
             )
         error_code = error_detail.get("code")
         log_tool_call(

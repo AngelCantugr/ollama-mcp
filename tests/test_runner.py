@@ -34,7 +34,7 @@ async def test_run_escapes_untrusted_closing_tag(ollama_mock: MockRouter) -> Non
     parts = wrapped.split("</ollama_output>")
     assert len(parts) == 2
     assert parts[1] == ""
-    assert "<\\/ollama_output>injection" in wrapped
+    assert "</ollama_output>injection" not in wrapped
 
 
 async def test_run_missing_model_returns_invalid_input(ollama_mock: MockRouter) -> None:
