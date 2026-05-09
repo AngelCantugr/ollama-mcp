@@ -12,6 +12,7 @@ from ollama_mcp.logging import log_tool_call
 from ollama_mcp.tools import register_tool
 
 _EMPTY_OBJECT_SCHEMA: dict[str, Any] = {"type": "object", "properties": {}, "required": []}
+_HEALTH_PROBE_PREFIX = ".health-probe-"
 
 
 def _validate_empty_object(arguments: dict[str, Any]) -> dict[str, Any]:
@@ -42,6 +43,18 @@ def _format_size(size: object) -> str:
             idx += 1
         formatted = f"{value:.1f}".rstrip("0").rstrip(".")
         return f"{formatted}{units[idx]}"
+    return ""
+
+
+def _extract_family(item: dict[str, Any]) -> str:
+    details = item.get("details")
+    if isinstance(details, dict):
+        detail_family = details.get("family")
+        if isinstance(detail_family, str):
+            return detail_family
+    top_family = item.get("family")
+    if isinstance(top_family, str):
+        return top_family
     return ""
 
 
@@ -83,21 +96,11 @@ async def list_models(arguments: dict[str, Any]) -> dict[str, Any]:
             for item in raw_models:
                 if not isinstance(item, dict):
                     continue
-                details = item.get("details")
-                family = ""
-                if isinstance(details, dict):
-                    detail_family = details.get("family")
-                    if isinstance(detail_family, str):
-                        family = detail_family
-                if not family:
-                    top_family = item.get("family")
-                    if isinstance(top_family, str):
-                        family = top_family
                 models.append(
                     {
                         "name": str(item.get("name", "")),
                         "digest": str(item.get("digest", "")),
-                        "family": family,
+                        "family": _extract_family(item),
                         "size": _format_size(item.get("size")),
                         "modified": str(item.get("modified_at", "")),
                     }
@@ -150,7 +153,7 @@ async def health(arguments: dict[str, Any]) -> dict[str, Any]:
         ollama_status = "timeout"
 
     db_status = "ok"
-    probe_filename = f".health-probe-{uuid.uuid4().hex}"
+    probe_filename = f"{_HEALTH_PROBE_PREFIX}{uuid.uuid4().hex}"
     try:
         probe_path = paths.create_data_file(probe_filename)
         probe_path.unlink(missing_ok=True)

@@ -33,7 +33,7 @@ async def test_list_models_ollama_unreachable(ollama_mock: MockRouter) -> None:
     assert result["error"]["code"] == "OLLAMA_UNREACHABLE"
 
 
-async def test_list_models_formats_size_mapping(ollama_mock: MockRouter) -> None:
+async def test_list_models_formats_size_as_gb(ollama_mock: MockRouter) -> None:
     ollama_mock.routes.clear()
     ollama_mock.get("/api/tags").respond(
         200,
@@ -74,7 +74,7 @@ async def test_health_ollama_unreachable(ollama_mock: MockRouter) -> None:
     assert "data_dir" in result
 
 
-async def test_health_data_dir_unwritable(
+async def test_health_db_status_unwritable_on_os_error(
     monkeypatch: pytest.MonkeyPatch, ollama_mock: MockRouter
 ) -> None:
     def _raise_os_error(filename: str) -> Path:
