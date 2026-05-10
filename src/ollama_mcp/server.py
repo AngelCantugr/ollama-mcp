@@ -12,10 +12,13 @@ from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
-import ollama_mcp.tools.discovery  # noqa: F401
-import ollama_mcp.tools.runner  # noqa: F401
 from ollama_mcp import logging as mcp_logging
 from ollama_mcp.storage import get_connection, migrate
+
+# Importing the tools package triggers auto-discovery of every submodule
+# (see ollama_mcp/tools/__init__.py). Each module's @register_tool decorator
+# fires at import time, populating the registry. New tools just need to
+# exist as a submodule — server.py never enumerates them.
 from ollama_mcp.tools import get_registry
 
 _log = mcp_logging.get_logger("ollama_mcp.server")
