@@ -18,6 +18,8 @@ from ollama_mcp.storage.evals_repo import TASK_TYPE_ORDER, EvalRow
 from ollama_mcp.tools import register_tool
 
 _TASK_TYPE_ENUM = TASK_TYPE_ORDER
+_EXPORT_TIMESTAMP_FORMAT = "%Y%m%dT%H%M%S%f"
+_ALTERNATIVE_LIMIT = 3
 
 _CLASSIFICATION_RULES: dict[str, list[str]] = {
     "code": [
@@ -234,7 +236,7 @@ async def export_evals(arguments: dict[str, Any]) -> dict[str, Any]:
         repo = get_repo()
         rows = repo.list_since(since)
 
-        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S%f")[:-3]
+        timestamp = datetime.now(tz=UTC).strftime(_EXPORT_TIMESTAMP_FORMAT)[:-3]
         relative_path = f"exports/evals_{timestamp}.{export_format}"
         export_path = paths.resolve_data_path(relative_path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -357,7 +359,8 @@ async def classify_prompt(arguments: dict[str, Any]) -> dict[str, Any]:
         ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
         task_type, confidence = ranked[0]
         alternatives = [
-            {"task_type": candidate, "confidence": score} for candidate, score in ranked[1:4]
+            {"task_type": candidate, "confidence": score}
+            for candidate, score in ranked[1 : _ALTERNATIVE_LIMIT + 1]
         ]
         result = {
             "task_type": task_type,
