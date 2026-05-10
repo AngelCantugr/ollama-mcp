@@ -15,6 +15,7 @@ from mcp.server.stdio import stdio_server
 import ollama_mcp.tools.discovery  # noqa: F401
 import ollama_mcp.tools.runner  # noqa: F401
 from ollama_mcp import logging as mcp_logging
+from ollama_mcp.storage import get_connection, migrate
 from ollama_mcp.tools import get_registry
 
 _log = mcp_logging.get_logger("ollama_mcp.server")
@@ -44,6 +45,17 @@ async def call_tool(name: str, arguments: dict[str, object]) -> list[types.TextC
 
 async def _main() -> None:
     _log.info("ollama-mcp server starting")
+    # Run migrations at startup so every tool sees a ready schema and we fail
+    # fast before opening the MCP stdio transport if storage is unhealthy.
+    conn = get_connection()
+    try:
+        migrate(conn)
+    except Exception:
+        _log.error("database migration failed during startup", exc_info=True)
+        raise
+    finally:
+        conn.close()
+
     async with stdio_server() as (read_stream, write_stream):
         init_opts: InitializationOptions = app.create_initialization_options()
         await app.run(read_stream, write_stream, init_opts)
