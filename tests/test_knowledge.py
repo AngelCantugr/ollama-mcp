@@ -146,12 +146,14 @@ async def test_export_evals_since_filter() -> None:
     repo = get_repo()
     first_id = repo.insert_partial(prompt="first", models=["llama3"])
     conn = get_connection()
-    with conn:
-        conn.execute(
-            "UPDATE evals SET created_at = ? WHERE id = ?",
-            ("2000-01-01 00:00:00", first_id),
-        )
-    conn.close()
+    try:
+        with conn:
+            conn.execute(
+                "UPDATE evals SET created_at = ? WHERE id = ?",
+                ("2000-01-01 00:00:00", first_id),
+            )
+    finally:
+        conn.close()
     second_id = repo.insert_partial(prompt="second", models=["mistral"])
     since = repo.get(second_id)
     assert since is not None

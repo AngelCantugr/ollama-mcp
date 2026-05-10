@@ -441,8 +441,7 @@ def _looks_like_iso8601(raw: str) -> bool:
 def _write_jsonl(path: Path, rows: list[EvalRow]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False))
-            handle.write("\n")
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def _write_csv(path: Path, rows: list[EvalRow]) -> None:
