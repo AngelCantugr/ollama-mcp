@@ -234,7 +234,7 @@ async def export_evals(arguments: dict[str, Any]) -> dict[str, Any]:
         repo = get_repo()
         rows = repo.list_since(since)
 
-        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S")
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S%f")
         relative_path = f"exports/evals_{timestamp}.{export_format}"
         export_path = paths.resolve_data_path(relative_path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -438,7 +438,7 @@ def _looks_like_iso8601(raw: str) -> bool:
 def _write_jsonl(path: Path, rows: list[EvalRow]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(row))
+            handle.write(json.dumps(row, ensure_ascii=False))
             handle.write("\n")
 
 

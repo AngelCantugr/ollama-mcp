@@ -6,6 +6,7 @@ import csv
 import json
 import os
 import stat
+import time
 from pathlib import Path
 
 from ollama_mcp import paths
@@ -145,6 +146,7 @@ async def test_export_evals_csv_happy_path() -> None:
 async def test_export_evals_since_filter() -> None:
     repo = get_repo()
     first_id = repo.insert_partial(prompt="first", models=["llama3"])
+    time.sleep(1.1)
     second_id = repo.insert_partial(prompt="second", models=["mistral"])
     since = repo.get(second_id)
     assert since is not None
@@ -156,9 +158,7 @@ async def test_export_evals_since_filter() -> None:
         json.loads(line)["id"] for line in export_path.read_text(encoding="utf-8").splitlines()
     ]
     assert second_id in exported_ids
-    first_row = get_repo().get(first_id)
-    assert first_row is not None
-    assert first_id in exported_ids or since["created_at"] == first_row["created_at"]
+    assert first_id not in exported_ids
 
 
 async def test_export_evals_empty_db_outputs_files() -> None:
