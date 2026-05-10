@@ -51,8 +51,12 @@ jobs:
           echo "Found draft PR #${PR_NUMBER} authored by ${PR_AUTHOR}"
           # Belt-and-braces author check — head ref alone could collide
           # with a human branch named `copilot/...`. The bot logins observed
-          # in practice are `copilot-swe-agent[bot]` and `app/copilot-swe-agent`.
-          case "$PR_AUTHOR" in
+          # in practice are `Copilot` (returned by the GitHub REST API),
+          # `copilot-swe-agent[bot]`, and `app/copilot-swe-agent` (returned
+          # by GraphQL with bot prefix). Compare case-insensitively because
+          # bash glob matching is case-sensitive by default.
+          PR_AUTHOR_LC=$(echo "$PR_AUTHOR" | tr '[:upper:]' '[:lower:]')
+          case "$PR_AUTHOR_LC" in
             *copilot* )
               echo "Author matches Copilot bot pattern; will mark ready."
               echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
