@@ -169,7 +169,22 @@ async def test_export_evals_empty_db_outputs_files() -> None:
     assert jsonl_path.read_text(encoding="utf-8") == ""
     csv_rows = csv_path.read_text(encoding="utf-8").splitlines()
     assert len(csv_rows) == 1
-    assert "id" in csv_rows[0]
+    expected_headers = [
+        "id",
+        "schema_version",
+        "created_at",
+        "prompt",
+        "prompt_hash",
+        "models",
+        "task_type",
+        "tags",
+        "winner",
+        "criteria",
+        "scores",
+        "judge_model",
+        "notes",
+    ]
+    assert csv_rows[0].split(",") == expected_headers
 
 
 async def test_export_evals_writes_under_exports_with_0600_permissions() -> None:

@@ -486,7 +486,7 @@ def _score_prompt(prompt: str) -> dict[str, float]:
 
 def _export_timestamp() -> str:
     now = datetime.now(tz=UTC)
-    return now.strftime("%Y%m%dT%H%M%S") + f"{now.microsecond // 1000:03d}"
+    return now.strftime("%Y%m%dT%H%M%S") + f"{now.microsecond // 1000:03d}Z"
 
 
 def _error_result(tool: str, start: float, code: ErrorCode, message: str) -> dict[str, Any]:
