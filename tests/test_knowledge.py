@@ -9,7 +9,7 @@ import stat
 from pathlib import Path
 
 from ollama_mcp import paths
-from ollama_mcp.storage import get_connection, get_repo
+from ollama_mcp.storage import get_repo
 from ollama_mcp.tools import get_registry, knowledge
 
 
@@ -144,18 +144,8 @@ async def test_export_evals_csv_happy_path() -> None:
 
 async def test_export_evals_since_filter() -> None:
     repo = get_repo()
-    first_id = repo.insert_partial(prompt="first", models=["llama3"])
-    conn = get_connection()
-    try:
-        with conn:
-            conn.execute(
-                "UPDATE evals SET created_at = ? WHERE id = ?",
-                ("2000-01-01 00:00:00", first_id),
-            )
-    finally:
-        conn.close()
-    second_id = repo.insert_partial(prompt="second", models=["mistral"])
-    since = repo.get(second_id)
+    eval_id = repo.insert_partial(prompt="second", models=["mistral"])
+    since = repo.get(eval_id)
     assert since is not None
 
     result = await knowledge.export_evals({"format": "jsonl", "since": since["created_at"]})
@@ -164,8 +154,7 @@ async def test_export_evals_since_filter() -> None:
     exported_ids = [
         json.loads(line)["id"] for line in export_path.read_text(encoding="utf-8").splitlines()
     ]
-    assert second_id in exported_ids
-    assert first_id not in exported_ids
+    assert exported_ids == [eval_id]
 
 
 async def test_export_evals_empty_db_outputs_files() -> None:

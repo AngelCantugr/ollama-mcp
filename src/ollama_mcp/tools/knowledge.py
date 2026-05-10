@@ -18,7 +18,6 @@ from ollama_mcp.storage.evals_repo import TASK_TYPE_ORDER, EvalRow
 from ollama_mcp.tools import register_tool
 
 _TASK_TYPE_ENUM = TASK_TYPE_ORDER
-_EXPORT_TIMESTAMP_FORMAT = "%Y%m%dT%H%M%S%f"
 _ALTERNATIVE_LIMIT = 3
 
 _CLASSIFICATION_RULES: dict[str, list[str]] = {
@@ -236,7 +235,7 @@ async def export_evals(arguments: dict[str, Any]) -> dict[str, Any]:
         repo = get_repo()
         rows = repo.list_since(since)
 
-        timestamp = datetime.now(tz=UTC).strftime(_EXPORT_TIMESTAMP_FORMAT)[:-3]
+        timestamp = _export_timestamp()
         relative_path = f"exports/evals_{timestamp}.{export_format}"
         export_path = paths.resolve_data_path(relative_path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
@@ -483,6 +482,11 @@ def _score_prompt(prompt: str) -> dict[str, float]:
         if hits > 0:
             scores[task_type] = hits / len(keywords)
     return scores
+
+
+def _export_timestamp() -> str:
+    now = datetime.now(tz=UTC)
+    return now.strftime("%Y%m%dT%H%M%S") + f"{now.microsecond // 1000:03d}"
 
 
 def _error_result(tool: str, start: float, code: ErrorCode, message: str) -> dict[str, Any]:
