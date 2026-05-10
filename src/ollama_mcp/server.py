@@ -12,6 +12,7 @@ from mcp.server import Server
 from mcp.server.models import InitializationOptions
 from mcp.server.stdio import stdio_server
 
+import ollama_mcp.tools.discovery  # noqa: F401
 import ollama_mcp.tools.runner  # noqa: F401
 from ollama_mcp import logging as mcp_logging
 from ollama_mcp.tools import get_registry
