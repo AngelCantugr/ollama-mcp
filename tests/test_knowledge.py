@@ -6,7 +6,6 @@ import csv
 import json
 import os
 import stat
-import time
 from pathlib import Path
 
 from ollama_mcp import paths
@@ -146,7 +145,11 @@ async def test_export_evals_csv_happy_path() -> None:
 async def test_export_evals_since_filter() -> None:
     repo = get_repo()
     first_id = repo.insert_partial(prompt="first", models=["llama3"])
-    time.sleep(1.1)
+    with repo._conn:
+        repo._conn.execute(
+            "UPDATE evals SET created_at = ? WHERE id = ?",
+            ("2000-01-01 00:00:00", first_id),
+        )
     second_id = repo.insert_partial(prompt="second", models=["mistral"])
     since = repo.get(second_id)
     assert since is not None

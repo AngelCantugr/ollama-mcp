@@ -234,7 +234,7 @@ async def export_evals(arguments: dict[str, Any]) -> dict[str, Any]:
         repo = get_repo()
         rows = repo.list_since(since)
 
-        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S%f")
+        timestamp = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%S%f")[:-3]
         relative_path = f"exports/evals_{timestamp}.{export_format}"
         export_path = paths.resolve_data_path(relative_path)
         export_path.parent.mkdir(parents=True, exist_ok=True)
