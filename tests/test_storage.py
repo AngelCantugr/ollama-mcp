@@ -7,7 +7,7 @@ import hashlib
 import pytest
 
 from ollama_mcp.storage import get_repo
-from ollama_mcp.storage.evals_repo import EvalsRepo
+from ollama_mcp.storage.evals_repo import TASK_TYPE_ORDER, EvalsRepo
 
 
 @pytest.fixture
@@ -36,6 +36,16 @@ def test_insert_partial_happy_path(repo: EvalsRepo) -> None:
 def test_insert_partial_rejects_invalid_task_type(repo: EvalsRepo) -> None:
     with pytest.raises(ValueError, match="Invalid task_type"):
         repo.insert_partial(prompt="hi", models=["llama3"], task_type="debugging")
+
+
+@pytest.mark.parametrize("task_type", TASK_TYPE_ORDER)
+def test_insert_partial_accepts_all_valid_task_types(repo: EvalsRepo, task_type: str) -> None:
+    eval_id = repo.insert_partial(
+        prompt=f"prompt-{task_type}", models=["llama3"], task_type=task_type
+    )
+    row = repo.get(eval_id)
+    assert row is not None
+    assert row["task_type"] == task_type
 
 
 def test_insert_partial_computes_prompt_hash(repo: EvalsRepo) -> None:
