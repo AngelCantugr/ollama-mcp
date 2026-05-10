@@ -301,7 +301,14 @@ async def get_model_insights(arguments: dict[str, Any]) -> dict[str, Any]:
             ErrorCode.INVALID_INPUT,
             "Field 'min_evals' must be an integer >= 1.",
         )
-    if not isinstance(threshold_arg, (int, float)) or not 0 <= float(threshold_arg) <= 1:
+    if not isinstance(threshold_arg, (int, float)):
+        return _error_result(
+            "get_model_insights",
+            start,
+            ErrorCode.INVALID_INPUT,
+            "Field 'win_rate_threshold' must be a number between 0.0 and 1.0.",
+        )
+    if not 0 <= float(threshold_arg) <= 1:
         return _error_result(
             "get_model_insights",
             start,
