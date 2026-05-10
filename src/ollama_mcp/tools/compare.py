@@ -156,7 +156,7 @@ async def compare(arguments: dict[str, Any]) -> dict[str, Any]:
     )
 
     results: list[dict[str, Any]] = []
-    for model, outcome in zip(models, task_results, strict=False):
+    for model, outcome in zip(models, task_results, strict=True):
         if isinstance(outcome, asyncio.CancelledError):
             raise outcome
         if isinstance(outcome, Exception):
@@ -171,17 +171,7 @@ async def compare(arguments: dict[str, Any]) -> dict[str, Any]:
                 }
             )
             continue
-        if isinstance(outcome, BaseException):
-            results.append(
-                {
-                    "model": model,
-                    "response": "",
-                    "duration_ms": 0,
-                    "status": "error",
-                    "error": str(outcome) or "Unexpected base exception in compare worker",
-                }
-            )
-            continue
+        assert not isinstance(outcome, BaseException)
         results.append(outcome)
 
     log_tool_call(
