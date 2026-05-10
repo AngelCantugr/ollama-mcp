@@ -1,0 +1,83 @@
+name: copilot ready marker
+
+# Auto-marks a draft PR authored by the Copilot Coding Agent as
+# "ready for review" once the `build and test` workflow finishes
+# successfully on its head SHA.
+#
+# Why: Copilot leaves PRs in draft state when its implementation is
+# complete, and there is no other mechanism to flip them. Reviewers
+# (human or automated) wait on the draft flag, so without this workflow
+# the wait is unbounded — a known failure mode that wedged a Wave 1
+# reviewer agent.
+#
+# Scope: only flips PRs whose head branch matches `copilot/*` AND whose
+# author is the Copilot bot. Human PRs are never touched. The flip is
+# idempotent — re-runs after additional commits are no-ops because the
+# PR is already non-draft.
+
+on:
+  workflow_run:
+    workflows: ["build and test"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  mark-ready:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Locate Copilot draft PR for head SHA
+        id: locate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          # /commits/{sha}/pulls returns every PR whose head matches the SHA
+          PRS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/pulls" \
+            --jq '[.[] | select(.draft == true and (.head.ref | startswith("copilot/")))]')
+          COUNT=$(echo "$PRS" | jq 'length')
+          if [ "$COUNT" -eq 0 ]; then
+            echo "No matching draft Copilot PR for ${HEAD_SHA}; nothing to do."
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PR_NUMBER=$(echo "$PRS" | jq -r '.[0].number')
+          PR_AUTHOR=$(echo "$PRS" | jq -r '.[0].user.login')
+          echo "Found draft PR #${PR_NUMBER} authored by ${PR_AUTHOR}"
+          # Belt-and-braces author check — head ref alone could collide
+          # with a human branch named `copilot/...`. The bot logins observed
+          # in practice are `copilot-swe-agent[bot]` and `app/copilot-swe-agent`.
+          case "$PR_AUTHOR" in
+            *copilot* )
+              echo "Author matches Copilot bot pattern; will mark ready."
+              echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+              ;;
+            * )
+              echo "Author ${PR_AUTHOR} is not a Copilot bot; skipping."
+              echo "pr_number=" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Mark PR ready for review
+        if: ${{ steps.locate.outputs.pr_number != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.locate.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          # gh pr ready is a no-op (and exits non-zero) if the PR is already
+          # ready, so guard the call to keep this workflow's logs clean.
+          IS_DRAFT=$(gh pr view "${PR_NUMBER}" -R "${REPO}" --json isDraft --jq .isDraft)
+          if [ "$IS_DRAFT" = "true" ]; then
+            gh pr ready "${PR_NUMBER}" -R "${REPO}"
+            gh pr comment "${PR_NUMBER}" -R "${REPO}" \
+              --body "Auto-marked ready for review: \`build and test\` succeeded on ${{ github.event.workflow_run.head_sha }}."
+          else
+            echo "PR #${PR_NUMBER} is already non-draft; nothing to do."
+          fi
