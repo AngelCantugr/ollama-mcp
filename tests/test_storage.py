@@ -81,6 +81,18 @@ def test_insert_complete_happy_path(repo: EvalsRepo) -> None:
     assert row["notes"] == "good output"
 
 
+def test_insert_complete_rejects_invalid_task_type(repo: EvalsRepo) -> None:
+    with pytest.raises(ValueError, match="Invalid task_type"):
+        repo.insert_complete(
+            prompt="Explain recursion",
+            models=["llama3", "mistral"],
+            winner="mistral",
+            scores={"llama3": 7, "mistral": 9},
+            criteria=["clarity"],
+            task_type="debugging",
+        )
+
+
 def test_update_scores_happy_path(repo: EvalsRepo) -> None:
     eval_id = repo.insert_partial(prompt="Explain recursion", models=["llama3", "mistral"])
 
