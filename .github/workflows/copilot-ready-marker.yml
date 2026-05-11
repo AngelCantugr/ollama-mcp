@@ -71,17 +71,41 @@ jobs:
         if: ${{ steps.locate.outputs.pr_number != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Optional override: if a PAT named READY_MARKER_TOKEN is configured
+          # in repo secrets, prefer it because the default GITHUB_TOKEN is denied
+          # the markPullRequestReadyForReview mutation in workflow_run contexts.
+          READY_MARKER_TOKEN: ${{ secrets.READY_MARKER_TOKEN }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.locate.outputs.pr_number }}
         run: |
-          set -euo pipefail
-          # gh pr ready is a no-op (and exits non-zero) if the PR is already
-          # ready, so guard the call to keep this workflow's logs clean.
+          set -uo pipefail
+          # gh pr ready exits non-zero if the PR is already non-draft, so check first.
           IS_DRAFT=$(gh pr view "${PR_NUMBER}" -R "${REPO}" --json isDraft --jq .isDraft)
-          if [ "$IS_DRAFT" = "true" ]; then
-            gh pr ready "${PR_NUMBER}" -R "${REPO}"
-            gh pr comment "${PR_NUMBER}" -R "${REPO}" \
-              --body "Auto-marked ready for review: \`build and test\` succeeded on ${{ github.event.workflow_run.head_sha }}."
-          else
+          if [ "$IS_DRAFT" != "true" ]; then
             echo "PR #${PR_NUMBER} is already non-draft; nothing to do."
+            exit 0
+          fi
+
+          # Known limitation: the default GITHUB_TOKEN in a workflow_run context
+          # is denied the `markPullRequestReadyForReview` GraphQL mutation by
+          # GitHub's security model, even though `pull-requests: write` is granted.
+          # If this fires, the orchestrator must flip the PR manually
+          # (or the repo can be configured with a PAT secret named
+          # READY_MARKER_TOKEN to unlock the mutation — see workflow comments).
+          # Either way, do NOT fail the workflow on the permission error — that
+          # pollutes the run history without telling the orchestrator anything
+          # new. Capture the error and exit 0 instead.
+          if [ -n "${READY_MARKER_TOKEN:-}" ]; then
+            export GH_TOKEN="$READY_MARKER_TOKEN"
+          fi
+
+          if gh pr ready "${PR_NUMBER}" -R "${REPO}" 2>/tmp/marker_err; then
+            gh pr comment "${PR_NUMBER}" -R "${REPO}" \
+              --body "Auto-marked ready for review: \`build and test\` succeeded on ${{ github.event.workflow_run.head_sha }}." \
+              || echo "(could not post confirmation comment; pr-ready itself succeeded)"
+          else
+            err=$(cat /tmp/marker_err)
+            echo "::warning::Could not auto-mark PR #${PR_NUMBER} ready: ${err}"
+            echo "::warning::This usually means the default GITHUB_TOKEN lacks markPullRequestReadyForReview permission in workflow_run context. Configure READY_MARKER_TOKEN secret (PAT with 'repo' scope) to enable auto-flip, or flip the PR manually."
+            exit 0
           fi
