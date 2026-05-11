@@ -471,6 +471,7 @@ async def test_judge_with_model_judge_timeout(ollama_mock: MockRouter) -> None:
     )
 
     assert result["error"]["code"] == "MODEL_TIMEOUT"
+    assert "eval_id" in result
 
 
 async def test_judge_with_model_judge_unparseable_output(ollama_mock: MockRouter) -> None:
@@ -503,6 +504,7 @@ async def test_judge_with_model_judge_unparseable_output(ollama_mock: MockRouter
 
     assert result["error"]["code"] == "INVALID_INPUT"
     assert "unparseable" in result["error"]["message"]
+    assert "eval_id" in result
 
 
 async def test_judge_with_model_judge_unreachable(ollama_mock: MockRouter) -> None:
@@ -529,6 +531,7 @@ async def test_judge_with_model_judge_unreachable(ollama_mock: MockRouter) -> No
     )
 
     assert result["error"]["code"] == "OLLAMA_UNREACHABLE"
+    assert "eval_id" in result
 
 
 # ---------------------------------------------------------------------------
@@ -574,3 +577,174 @@ async def test_judge_with_model_one_model_fails(ollama_mock: MockRouter) -> None
 
     assert result.get("logged") is True
     assert result["winner"] == "mistral"
+
+
+# ---------------------------------------------------------------------------
+# judge_with_model — eval_id in error responses after partial row insert
+# ---------------------------------------------------------------------------
+
+
+async def test_judge_with_model_judge_http_error_includes_eval_id(
+    ollama_mock: MockRouter,
+) -> None:
+    """httpx.HTTPError from judge model → error response includes eval_id."""
+    call_count = 0
+
+    def _generate(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        model = json.loads(request.content).get("model", "unknown")
+        if call_count <= 2:
+            return httpx.Response(200, json={"model": model, "response": "answer", "done": True})
+        raise httpx.HTTPStatusError(
+            "500 Internal Server Error",
+            request=request,
+            response=httpx.Response(500),
+        )
+
+    ollama_mock.post("/api/generate").mock(side_effect=_generate)
+
+    result = await judge_with_model(
+        {
+            "prompt": "Hello",
+            "models": ["llama3", "mistral"],
+            "judge_model": "llama3",
+            "criteria": ["quality"],
+        }
+    )
+
+    assert result["error"]["code"] == "OLLAMA_UNREACHABLE"
+    assert "eval_id" in result
+
+
+async def test_judge_with_model_judge_result_error_includes_eval_id(
+    ollama_mock: MockRouter,
+) -> None:
+    """judge_result carrying an error envelope → error response includes eval_id."""
+    call_count = 0
+
+    def _generate(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        model = json.loads(request.content).get("model", "unknown")
+        if call_count <= 2:
+            return httpx.Response(200, json={"model": model, "response": "answer", "done": True})
+        # Simulate the client returning an error envelope in the parsed response dict
+        return httpx.Response(
+            200,
+            json={
+                "model": model,
+                "error": {
+                    "code": "MODEL_NOT_FOUND",
+                    "message": "model missing",
+                    "retryable": False,
+                },
+                "done": True,
+            },
+        )
+
+    ollama_mock.post("/api/generate").mock(side_effect=_generate)
+
+    result = await judge_with_model(
+        {
+            "prompt": "Hello",
+            "models": ["llama3", "mistral"],
+            "judge_model": "llama3",
+            "criteria": ["quality"],
+        }
+    )
+
+    assert "error" in result
+    assert "eval_id" in result
+
+
+async def test_judge_with_model_update_scores_keyerror_includes_eval_id(
+    ollama_mock: MockRouter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """update_scores KeyError → DB_ERROR response includes eval_id."""
+    call_count = 0
+    judge_json = json.dumps(
+        {
+            "scores": {
+                "llama3": {"score": 7, "reasoning": "ok"},
+                "mistral": {"score": 9, "reasoning": "great"},
+            },
+            "winner": "mistral",
+        }
+    )
+
+    def _generate(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        model = json.loads(request.content).get("model", "unknown")
+        if call_count <= 2:
+            return httpx.Response(200, json={"model": model, "response": "answer", "done": True})
+        return httpx.Response(200, json={"model": model, "response": judge_json, "done": True})
+
+    ollama_mock.post("/api/generate").mock(side_effect=_generate)
+
+    from ollama_mcp.storage import evals_repo as _evals_repo_mod
+
+    def _simulate_missing_eval_id(self: object, **kwargs: object) -> None:
+        raise KeyError("simulated missing eval_id")
+
+    monkeypatch.setattr(_evals_repo_mod.EvalsRepo, "update_scores", _simulate_missing_eval_id)
+
+    result = await judge_with_model(
+        {
+            "prompt": "Hello",
+            "models": ["llama3", "mistral"],
+            "judge_model": "llama3",
+            "criteria": ["quality"],
+        }
+    )
+
+    assert result["error"]["code"] == "DB_ERROR"
+    assert "eval_id" in result
+
+
+async def test_judge_with_model_update_scores_exception_includes_eval_id(
+    ollama_mock: MockRouter,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """update_scores generic Exception → DB_ERROR response includes eval_id."""
+    call_count = 0
+    judge_json = json.dumps(
+        {
+            "scores": {
+                "llama3": {"score": 7, "reasoning": "ok"},
+                "mistral": {"score": 9, "reasoning": "great"},
+            },
+            "winner": "mistral",
+        }
+    )
+
+    def _generate(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        model = json.loads(request.content).get("model", "unknown")
+        if call_count <= 2:
+            return httpx.Response(200, json={"model": model, "response": "answer", "done": True})
+        return httpx.Response(200, json={"model": model, "response": judge_json, "done": True})
+
+    ollama_mock.post("/api/generate").mock(side_effect=_generate)
+
+    from ollama_mcp.storage import evals_repo as _evals_repo_mod
+
+    def _simulate_db_failure(self: object, **kwargs: object) -> None:
+        raise RuntimeError("simulated DB failure")
+
+    monkeypatch.setattr(_evals_repo_mod.EvalsRepo, "update_scores", _simulate_db_failure)
+
+    result = await judge_with_model(
+        {
+            "prompt": "Hello",
+            "models": ["llama3", "mistral"],
+            "judge_model": "llama3",
+            "criteria": ["quality"],
+        }
+    )
+
+    assert result["error"]["code"] == "DB_ERROR"
+    assert "eval_id" in result

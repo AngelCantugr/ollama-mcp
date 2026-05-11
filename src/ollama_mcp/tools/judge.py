@@ -419,6 +419,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
                 "error"
             ],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
     except httpx.ConnectError:
         duration_ms = _duration_ms(start)
@@ -433,6 +434,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
         return {
             "error": make_error(ErrorCode.OLLAMA_UNREACHABLE, "Cannot reach Ollama")["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
     except httpx.HTTPError as exc:
         duration_ms = _duration_ms(start)
@@ -447,6 +449,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
         return {
             "error": make_error(ErrorCode.OLLAMA_UNREACHABLE, str(exc))["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
 
     if "error" in judge_result:
@@ -470,6 +473,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
             if isinstance(err, dict)
             else make_error(ErrorCode.OLLAMA_UNREACHABLE, str(err))["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
 
     raw_judge_output = judge_result.get("response", "")
@@ -491,6 +495,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
         return {
             "error": make_error(ErrorCode.INVALID_INPUT, "judge model output unparseable")["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
 
     judge_scores, winner = parsed
@@ -521,6 +526,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
                 ErrorCode.DB_ERROR, f"eval_id {eval_id!r} disappeared before scoring"
             )["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
     except Exception as exc:
         duration_ms = _duration_ms(start)
@@ -536,6 +542,7 @@ async def judge_with_model(arguments: dict[str, Any]) -> dict[str, Any]:
         return {
             "error": make_error(ErrorCode.DB_ERROR, str(exc))["error"],
             "duration_ms": duration_ms,
+            "eval_id": eval_id,
         }
 
     duration_ms = _duration_ms(start)
