@@ -1,0 +1,1 @@
+"""Bundled routing config resources."""

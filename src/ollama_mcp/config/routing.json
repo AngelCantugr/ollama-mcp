@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "code": "codellama",
+    "summary": "mistral",
+    "explanation": "mistral",
+    "general": "llama3"
+  },
+  "tier_overrides": {
+    "fast": "phi4"
+  },
+  "default": "llama3"
+}

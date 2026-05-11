@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ollama-mcp routing.json",
+  "type": "object",
+  "required": ["rules", "default"],
+  "additionalProperties": false,
+  "properties": {
+    "rules": {
+      "type": "object",
+      "description": "Map of task_type → model name.",
+      "patternProperties": {
+        "^(code|summary|explanation|reasoning|extraction|translation|general|other)$": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "tier_overrides": {
+      "type": "object",
+      "description": "Map of tier name (e.g. 'fast') → model name. Tiers are constraints, not tasks.",
+      "patternProperties": {
+        "^[a-z_]+$": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "default": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
