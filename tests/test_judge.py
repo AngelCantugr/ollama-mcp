@@ -372,7 +372,9 @@ async def test_judge_with_model_judge_output_in_markdown_fence(
         ({"prompt": "p", "models": ["a", "b"], "judge_model": "j", "criteria": []}, "criteria"),
     ],
 )
-async def test_judge_with_model_invalid_input(arguments: dict[str, object], expected_field: str) -> None:
+async def test_judge_with_model_invalid_input(
+    arguments: dict[str, object], expected_field: str
+) -> None:
     result = await judge_with_model(arguments)
     assert result["error"]["code"] == "INVALID_INPUT"
     assert "duration_ms" in result
